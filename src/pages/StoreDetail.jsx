@@ -1,277 +1,160 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { MapPin, Clock, ShoppingBag, Star, AlertCircle } from 'lucide-react';
-import Header from '../components/Header';
-import CountdownTimer from '../components/CountdownTimer';
+import { MapPin, ShoppingBag, Clock } from 'lucide-react';
+import { useUser } from '@clerk/clerk-react';
+
+// Mock fetch functions (replace with real backend calls)
+const fetchStore = async (id) => {
+  // Replace with real API call
+  return {
+    id,
+    name: `Walmart Supercenter #${id}`,
+    address: '123 Main St, Downtown',
+    distance: '0.8 miles',
+    bags: 12,
+    hours: 'Open until 11:00 PM',
+    rating: 4.5,
+    image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=300&fit=crop',
+  };
+};
+const fetchBags = async (storeId) => {
+  // Replace with real API call
+  return [
+    {
+      id: 1,
+      category: 'Bakery & Dairy',
+      price: 4.00,
+      originalPrice: 15.00,
+      description: 'Fresh bread, pastries, milk, yogurt, and cheese',
+      expiresIn: 2,
+      quantity: 3,
+      image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=300&fit=crop',
+    },
+    {
+      id: 2,
+      category: 'Fresh Produce',
+      price: 6.00,
+      originalPrice: 20.00,
+      description: 'Seasonal fruits, vegetables, and leafy greens',
+      expiresIn: 4,
+      quantity: 2,
+      image: 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=300&fit=crop',
+    },
+  ];
+};
+
+const BACKEND_URL = 'http://localhost:4000';
 
 const StoreDetail = () => {
   const { id } = useParams();
+  const { user } = useUser();
   const [store, setStore] = useState(null);
-  const [selectedBags, setSelectedBags] = useState([]);
-
-  // Mock store data
-  const mockStoreData = {
-    1: {
-      id: 1,
-      name: "Walmart Supercenter - Downtown",
-      address: "123 Main Street, Downtown, NY 10001",
-      distance: "0.8 miles",
-      phone: "(555) 123-4567",
-      hours: "Open until 11:00 PM",
-      rating: 4.5,
-      surpriseBags: [
-        {
-          id: 1,
-          category: "Bakery & Dairy",
-          price: 4.00,
-          originalPrice: 15.00,
-          description: "Fresh bread, pastries, milk, yogurt, and cheese",
-          expiresIn: 2,
-          quantity: 3,
-          image: "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=300&fit=crop"
-        },
-        {
-          id: 2,
-          category: "Fresh Produce",
-          price: 6.00,
-          originalPrice: 20.00,
-          description: "Seasonal fruits, vegetables, and leafy greens",
-          expiresIn: 4,
-          quantity: 2,
-          image: "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=300&fit=crop"
-        },
-        {
-          id: 3,
-          category: "Deli & Prepared",
-          price: 5.00,
-          originalPrice: 18.00,
-          description: "Sandwiches, salads, and ready-to-eat meals",
-          expiresIn: 1,
-          quantity: 4,
-          image: "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=300&fit=crop"
-        },
-        {
-          id: 4,
-          category: "Snacks & Pantry",
-          price: 3.00,
-          originalPrice: 12.00,
-          description: "Chips, crackers, nuts, and pantry staples",
-          expiresIn: 6,
-          quantity: 5,
-          image: "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=300&fit=crop"
-        }
-      ]
-    }
-  };
+  const [bags, setBags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
-    // Simulate API call
-    if (mockStoreData[id]) {
-      setStore(mockStoreData[id]);
-    }
+    const fetchData = async () => {
+      setLoading(true);
+      const storeData = await fetchStore(id);
+      const bagsData = await fetchBags(id);
+      setStore(storeData);
+      setBags(bagsData);
+      setLoading(false);
+    };
+    fetchData();
   }, [id]);
 
-  const addToBag = (bagId) => {
-    setSelectedBags(prev => [...prev, bagId]);
+  const handleReserve = async (bag) => {
+    if (!user) {
+      setMessage('Please sign in to reserve a bag.');
+      return;
+    }
+    const reservation = {
+      ...bag,
+      reservedAt: new Date().toISOString(),
+      reservedPrice: bag.price,
+      store: store.name,
+    };
+    const res = await fetch(`${BACKEND_URL}/users/${user.id}/reservations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reservation),
+    });
+    if (res.ok) {
+      setMessage('Bag reserved! Check your profile for details.');
+    } else {
+      setMessage('Failed to reserve bag. Please try again.');
+    }
   };
 
-  const removeFromBag = (bagId) => {
-    setSelectedBags(prev => prev.filter(id => id !== bagId));
-  };
-
-  const getTotalPrice = () => {
-    if (!store) return 0;
-    return selectedBags.reduce((total, bagId) => {
-      const bag = store.surpriseBags.find(b => b.id === bagId);
-      return total + (bag ? bag.price : 0);
-    }, 0);
-  };
-
-  const getTotalSavings = () => {
-    if (!store) return 0;
-    return selectedBags.reduce((total, bagId) => {
-      const bag = store.surpriseBags.find(b => b.id === bagId);
-      return total + (bag ? bag.originalPrice - bag.price : 0);
-    }, 0);
-  };
-
-  if (!store) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-amber-50">
-        <Header />
-        <div className="flex items-center justify-center h-64">
-          <p className="text-xl text-gray-600">Loading store details...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (!store) return <div className="min-h-screen flex items-center justify-center">Store not found.</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-amber-50">
-      <Header />
-      
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-amber-100 py-12 px-4">
+      <div className="max-w-5xl mx-auto">
         {/* Store Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center mb-6 md:mb-0">
+            <img src={store.image} alt={store.name} className="w-32 h-32 object-cover rounded-lg mr-6" />
             <div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-4">{store.name}</h1>
-              
-              <div className="space-y-3 text-gray-600">
-                <div className="flex items-center">
-                  <MapPin className="w-5 h-5 mr-3 text-green-600" />
-                  <div>
-                    <p>{store.address}</p>
-                    <p className="text-sm">{store.distance} away</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center">
-                  <Clock className="w-5 h-5 mr-3 text-green-600" />
-                  <p>{store.hours}</p>
-                </div>
-                
-                <div className="flex items-center">
-                  <Star className="w-5 h-5 mr-3 text-yellow-500" />
-                  <p>{store.rating}/5.0 rating</p>
-                </div>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">{store.name}</h1>
+              <div className="flex items-center text-gray-600 mb-1">
+                <MapPin className="w-5 h-5 mr-2 text-green-600" />
+                <span>{store.address}</span>
+                <span className="ml-4">{store.distance} away</span>
               </div>
+              <div className="text-gray-500 text-sm">{store.hours}</div>
+              <div className="text-yellow-500 mt-1">{'★'.repeat(Math.round(store.rating))} <span className="text-gray-500">({store.rating})</span></div>
             </div>
-            
-            <div className="flex items-center justify-center lg:justify-end">
-              <div className="text-center p-6 bg-green-50 rounded-lg">
-                <ShoppingBag className="w-12 h-12 text-green-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-green-600">{store.surpriseBags.length}</p>
-                <p className="text-gray-600">Surprise Bags Available</p>
-              </div>
-            </div>
+          </div>
+          <div className="flex flex-col items-center">
+            <ShoppingBag className="w-10 h-10 text-green-600 mb-2" />
+            <span className="text-2xl font-bold text-green-600">{store.bags}</span>
+            <span className="text-gray-600">Surprise Bags</span>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Available Bags */}
-          <div className="lg:col-span-2">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Available Surprise Bags</h2>
-            
-            <div className="space-y-6">
-              {store.surpriseBags.map((bag) => (
-                <div key={bag.id} className="bg-white rounded-xl shadow-lg overflow-hidden">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
-                    <div className="md:col-span-1">
-                      <img 
-                        src={bag.image} 
-                        alt={bag.category}
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-semibold text-gray-800 mb-2">{bag.category}</h3>
-                          <p className="text-gray-600 mb-3">{bag.description}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-green-600">${bag.price.toFixed(2)}</p>
-                          <p className="text-gray-500 line-through">${bag.originalPrice.toFixed(2)}</p>
-                          <p className="text-sm text-green-600 font-medium">
-                            Save ${(bag.originalPrice - bag.price).toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center text-red-600">
-                            <Clock className="w-4 h-4 mr-1" />
-                            <CountdownTimer expiresInHours={bag.expiresIn} />
-                          </div>
-                          <div className="flex items-center text-gray-600">
-                            <AlertCircle className="w-4 h-4 mr-1" />
-                            <span className="text-sm">{bag.quantity} available</span>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          {selectedBags.includes(bag.id) ? (
-                            <button
-                              onClick={() => removeFromBag(bag.id)}
-                              className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                            >
-                              Remove
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => addToBag(bag.id)}
-                              className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                            >
-                              Add to Cart
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Map Placeholder */}
+        <div className="mb-10">
+          <div className="w-full h-48 bg-green-100 rounded-xl flex items-center justify-center text-gray-400 text-lg">
+            [Map Placeholder]
           </div>
-
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg p-6 sticky top-24">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Order Summary</h3>
-              
-              {selectedBags.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No items selected</p>
-              ) : (
-                <div>
-                  <div className="space-y-3 mb-4">
-                    {selectedBags.map((bagId) => {
-                      const bag = store.surpriseBags.find(b => b.id === bagId);
-                      return (
-                        <div key={bagId} className="flex justify-between items-center py-2 border-b border-gray-100">
-                          <div>
-                            <p className="font-medium text-gray-800">{bag.category}</p>
-                            <p className="text-sm text-gray-600">${bag.price.toFixed(2)}</p>
-                          </div>
-                          <button
-                            onClick={() => removeFromBag(bagId)}
-                            className="text-red-600 hover:text-red-800 text-sm"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      );
-                    })}
+        </div>
+        {/* Available Bags */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Available Surprise Bags</h2>
+          {message && <div className="mb-6 text-center text-green-700 font-semibold">{message}</div>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {bags.length === 0 ? (
+              <div className="col-span-full text-center text-gray-500">No bags available.</div>
+            ) : (
+              bags.map((bag) => (
+                <div key={bag.id} className="bg-white rounded-xl shadow-lg p-6 flex flex-col md:flex-row items-center">
+                  <img src={bag.image} alt={bag.category} className="w-32 h-32 object-cover rounded-lg mb-4 md:mb-0 md:mr-6" />
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-gray-800 mb-2">{bag.category}</h3>
+                    <p className="text-gray-600 mb-2">{bag.description}</p>
+                    <div className="flex items-center text-gray-500 text-sm mb-2">
+                      <Clock className="w-4 h-4 mr-1" />
+                      <span>Expires in {bag.expiresIn} hours</span>
+                      <span className="ml-4">{bag.quantity} available</span>
+                    </div>
+                    <div className="flex items-end space-x-2 mb-2">
+                      <span className="text-2xl font-bold text-green-600">${bag.price.toFixed(2)}</span>
+                      <span className="text-gray-400 line-through">${bag.originalPrice.toFixed(2)}</span>
+                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-medium">{Math.round(100 - (bag.price / bag.originalPrice) * 100)}% OFF</span>
+                    </div>
+                    <button
+                      className="mt-2 py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow transition-all"
+                      onClick={() => handleReserve(bag)}
+                    >
+                      Reserve Bag
+                    </button>
                   </div>
-                  
-                  <div className="border-t border-gray-200 pt-4 mb-6">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-gray-600">Subtotal:</span>
-                      <span className="font-semibold">${getTotalPrice().toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-gray-600">You Save:</span>
-                      <span className="font-semibold text-green-600">${getTotalSavings().toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-lg font-bold">
-                      <span>Total:</span>
-                      <span className="text-green-600">${getTotalPrice().toFixed(2)}</span>
-                    </div>
-                  </div>
-                  
-                  <button className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700 transition-colors">
-                    Reserve Now
-                  </button>
-                  
-                  <p className="text-xs text-gray-500 text-center mt-3">
-                    Pickup required within reservation time
-                  </p>
                 </div>
-              )}
-            </div>
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Leaf, MapPin, Clock, Star } from 'lucide-react';
 import Header from '../components/Header';
 import StoreCard from '../components/StoreCard';
@@ -9,6 +8,7 @@ import CountdownTimer from '../components/CountdownTimer';
 const Index = () => {
   const [nearbyStores, setNearbyStores] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
+  const navigate = useNavigate();
 
   // Mock data for nearby stores
   const mockStores = [
